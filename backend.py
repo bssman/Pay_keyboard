@@ -3,8 +3,9 @@ import pyotp
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
-
+from flask_cors import CORS
 app = Flask(__name__)
+CORS(app)
 
 # Secret key for OTP
 SECRET_KEY = "YOUR_SECRET_KEY"
@@ -42,6 +43,7 @@ def send_email(recipient_email, otp):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
+	print("Received webhook data:", data)  # Log incoming data for debugging
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
         counter = data['data']['id']  # Use unique transaction ID as counter
