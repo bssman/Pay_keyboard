@@ -52,19 +52,22 @@ def home():
 def webhook():
     data = request.json
     print("Received webhook data:", data)  # Log incoming data for debugging
+    
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
-        transaction_id = data['data']['id']  # Get the transaction ID
-
-        # Generate a numeric counter from the transaction ID
-        counter = sum(ord(char) for char in transaction_id)  # Convert to an integer
+        try:
+            # Ensure counter is an integer
+            counter = int(''.join(filter(str.isdigit, data['data']['id'])))  # Extract digits and convert to int
+        except ValueError:
+            return jsonify({"status": "error", "message": "Invalid transaction ID format"}), 400
 
         otp = generate_otp(counter)
-
+        
         # Send OTP to email
         send_email(email, otp)
 
         return jsonify({"status": "success", "message": "OTP sent to email"}), 200
+    
     return jsonify({"status": "ignored"}), 200
 
 if __name__ == '__main__':
