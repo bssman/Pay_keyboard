@@ -4,11 +4,15 @@ import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask_cors import CORS
+import os
+
 app = Flask(__name__)
-CORS(app)
+CORS(app, origins=["https://suites11.com.ng"])
 
 # Secret key for OTP
-SECRET_KEY = "YOUR_SECRET_KEY"
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable not set.")
 
 # Email Configuration
 SMTP_SERVER = "smtp.gmail.com"
@@ -40,15 +44,23 @@ def send_email(recipient_email, otp):
     except Exception as e:
         print(f"Failed to send email: {e}")
 
+@app.route('/')
+def home():
+    return "Backend is running."
+
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
     print("Received webhook data:", data)  # Log incoming data for debugging
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
-        counter = data['data']['id']  # Use unique transaction ID as counter
+        transaction_id = data['data']['id']  # Get the transaction ID
+
+        # Generate a numeric counter from the transaction ID
+        counter = sum(ord(char) for char in transaction_id)  # Convert to an integer
+
         otp = generate_otp(counter)
-        
+
         # Send OTP to email
         send_email(email, otp)
 
