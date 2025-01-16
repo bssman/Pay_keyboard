@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment and OTP Generation</title>
+    <script src="https://js.paystack.co/v1/inline.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            margin-top: 50px;
+        }
+        form {
+            margin: auto;
+            padding: 20px;
+            width: 300px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        input[type="email"], input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h1>Pay and Get OTP</h1>
+    <form id="paymentForm">
+        <input type="email" id="email" placeholder="Enter your email" required />
+        <input type="text" id="amount" placeholder="Enter amount (NGN)" required />
+        <button type="submit">Pay Now</button>
+    </form>
+
+    <script>
+        const paymentForm = document.getElementById('paymentForm');
+
+        paymentForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+
+            const email = document.getElementById('email').value;
+            const amount = document.getElementById('amount').value * 100; // Convert to kobo
+
+            payWithPaystack(email, amount);
+        });
+
+        function payWithPaystack(email, amount) {
+            let handler = PaystackPop.setup({
+                key: 'pk_test_22dcad480918f9bb4bc5b2a4193266b862e2f943', // Replace with your Paystack public key
+                email: email,
+                amount: amount,
+                currency: 'NGN',
+                callback: function (response) {
+                    // Notify backend to send tokens
+                    notifyBackend(email, response.reference, amount);
+                },
+                onClose: function () {
+                    alert('Payment window closed.');
+                },
+            });
+
+            handler.openIframe();
+        }
+
+        function notifyBackend(email, reference, amount) {
+            fetch('https://pay-keyboard.onrender.com/webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    event: 'charge.success',
+                    data: {
+                        id: reference,
+                        amount: amount, // Include the amount
+                        customer: {
+                            email: email,
+                        },
+                    },
+                }),
+            })
+                .then((response) => {
+                    if (response.ok) {
+                        alert('Tokens have been sent to your email.');
+                    } else {
+                        alert('Error notifying backend. Please contact support.');
+                    }
+                })
+                .catch((error) => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
+        }
+    </script>
+</body>
+</html>

@@ -1,23 +1,17 @@
 from flask import Flask, request, jsonify
 import hashlib
+import random
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from flask_cors import CORS
 import os
-from dotenv import load_dotenv
-
-# Load environment variables from .env file
-load_dotenv()
-
 
 app = Flask(__name__)
 CORS(app, origins=["https://suites11.com.ng"])
 
-# Secret key for hash-based token generation
-SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ValueError("SECRET_KEY environment variable not set.")
+# Secret salt for token hashing
+SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")  # Use a secure value
 
 # Email Configuration
 SMTP_SERVER = "mail.codenrobots.com.ng"
@@ -25,20 +19,25 @@ SMTP_PORT = 465
 EMAIL = "info@codenrobots.com.ng"
 PASSWORD = "Live&4507"
 
-# Function to generate hash-based tokens
-def generate_token(payment_amount, transaction_id):
-    data = f"{payment_amount}{transaction_id}{SECRET_KEY}"
-    return hashlib.sha256(data.encode()).hexdigest()[:8]
+# Function to generate hashed tokens
+def generate_hashed_tokens(amount, transaction_id):
+    num_tokens = amount // 200  # Assuming 200 NGN per token
+    tokens = []
+    for i in range(num_tokens):
+        unique_data = f"{transaction_id}-{i}-{SECRET_SALT}"
+        token = hashlib.sha256(unique_data.encode()).hexdigest()[:8]  # 8-character token
+        tokens.append(token)
+    return tokens
 
-# Send tokens to email
+# Send tokens via email
 def send_email(recipient_email, tokens):
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL
         msg['To'] = recipient_email
-        msg['Subject'] = "Your Pump Activation Tokens"
+        msg['Subject'] = "Your OTPs for Pump Activation"
 
-        body = "Here are your tokens for pump activation:\n\n" + "\n".join(tokens) + "\n\nEach token can be used once."
+        body = "Your OTPs are:\n\n" + "\n".join(tokens) + "\n\nEach token can be used to activate the pump once."
         msg.attach(MIMEText(body, 'plain'))
 
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
@@ -61,26 +60,25 @@ def webhook():
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
         transaction_id = data['data']['id']  # Unique transaction ID
-        payment_amount = data['data']['amount']  # Amount paid (e.g., 1000, 5000)
+        payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
 
         try:
-            payment_amount = int(payment_amount) // 100  # Convert kobo to Naira if necessary
+            payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
         except ValueError:
             return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
 
-        # Generate tokens based on payment amount
-        num_tokens = payment_amount // 200  # Example: 1 token per 200 units paid
-        tokens = [
-            generate_token(payment_amount, f"{transaction_id}-{i}")
-            for i in range(num_tokens)
-        ]
+        if payment_amount <= 0:
+            return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
 
-        # Send tokens to email
+        # Generate tokens based on payment amount and transaction ID
+        tokens = generate_hashed_tokens(payment_amount, transaction_id)
+
+        # Send tokens via email
         send_email(email, tokens)
 
-        return jsonify({"status": "success", "message": "Tokens sent to email", "tokens": tokens}), 200
-
+        return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
+    
     return jsonify({"status": "ignored"}), 200
 
 if __name__ == '__main__':
-    app.run(host = '0.0.0.0',port=5000, debug=True)
+    app.run(port=10000, debug=True)
