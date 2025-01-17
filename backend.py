@@ -1,6 +1,6 @@
+import logging
 from flask import Flask, request, jsonify
-import hashlib
-import random
+import pyotp
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
@@ -10,43 +10,47 @@ import os
 app = Flask(__name__)
 CORS(app, origins=["https://suites11.com.ng"])
 
-# Secret salt for token hashing
-SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")  # Use a secure value
+# Configure logging
+logging.basicConfig(level=logging.INFO)  # Log all messages with INFO level or higher
+logger = logging.getLogger(__name__)
+
+# Secret key for OTP
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable not set.")
 
 # Email Configuration
-SMTP_SERVER = "mail.codenrobots.com.ng"
-SMTP_PORT = 465
-EMAIL = "info@codenrobots.com.ng"
-PASSWORD = "Live&4507"
+SMTP_SERVER = "smtp.gmail.com"
+SMTP_PORT = 587
+EMAIL = "garpiyan@gmail.com"
+PASSWORD = "Live&4507&86"
 
-# Function to generate hashed tokens
-def generate_hashed_tokens(amount, transaction_id):
-    num_tokens = amount // 200  # Assuming 200 NGN per token
-    tokens = []
-    for i in range(num_tokens):
-        unique_data = f"{transaction_id}-{i}-{SECRET_SALT}"
-        token = hashlib.sha256(unique_data.encode()).hexdigest()[:8]  # 8-character token
-        tokens.append(token)
-    return tokens
+# Generate OTP using pyotp
+def generate_otp(counter):
+    hotp = pyotp.HOTP(SECRET_KEY)
+    return hotp.at(counter)
 
-# Send tokens via email
-def send_email(recipient_email, tokens):
+# Send OTP to email
+def send_email(recipient_email, otp):
     try:
         msg = MIMEMultipart()
         msg['From'] = EMAIL
         msg['To'] = recipient_email
-        msg['Subject'] = "Your OTPs for Pump Activation"
+        msg['Subject'] = "Your OTP for Pump Activation"
 
-        body = "Your OTPs are:\n\n" + "\n".join(tokens) + "\n\nEach token can be used to activate the pump once."
+        body = f"Your OTP is: {otp}. It is valid for 5 minutes."
         msg.attach(MIMEText(body, 'plain'))
 
+        logger.info(f"Sending OTP to {recipient_email}")
+        
         server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
         server.starttls()
         server.login(EMAIL, PASSWORD)
         server.send_message(msg)
         server.quit()
+        logger.info(f"OTP sent successfully to {recipient_email}")
     except Exception as e:
-        print(f"Failed to send email: {e}")
+        logger.error(f"Failed to send email to {recipient_email}: {e}")
 
 @app.route('/')
 def home():
@@ -55,34 +59,38 @@ def home():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print("Received webhook data:", data)  # Log incoming data for debugging
+    logger.info(f"Received webhook data: {data}")
     
-    if data['event'] == 'charge.success':
-        email = data['data']['customer']['email']
-        transaction_id = data['data']['id']  # Unique transaction ID
-        payment_amount = data['data'].get('amount')  # Safely access the 'amount' field
+    try:
+        if data['event'] == 'charge.success':
+            email = data['data']['customer']['email']
+            payment_amount = data['data'].get('amount', 0) // 100  # Convert to NGN
+            transaction_id = data['data']['id']
+            
+            if payment_amount <= 0:
+                raise ValueError("Invalid payment amount")
 
-        if not payment_amount:
-            return jsonify({"status": "error", "message": "Amount not provided in webhook payload"}), 400
+            logger.info(f"Processing payment: {payment_amount} NGN for transaction {transaction_id}")
+            
+            # Generate tokens
+            tokens = generate_hashed_tokens(payment_amount, transaction_id)
+            logger.info(f"Generated tokens: {tokens}")
+            
+            # Send email with tokens
+            send_email(email, tokens)
 
-        try:
-            payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
-        except ValueError:
-            return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
+            return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
+    except Exception as e:
+        logger.error(f"Error processing webhook: {e}")
+        return jsonify({"status": "error", "message": "Internal server error"}), 500
 
-        if payment_amount <= 0:
-            return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
-
-        # Generate tokens based on payment amount and transaction ID
-        tokens = generate_hashed_tokens(payment_amount, transaction_id)
-
-        # Send tokens via email
-        send_email(email, tokens)
-
-        return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
+def generate_hashed_tokens(payment_amount, transaction_id):
+    # Example: Generate a list of tokens based on the payment amount
+    num_tokens = payment_amount // 200  # Example: 1 token per 200 units paid
+    logger.info(f"Generating {num_tokens} tokens for {transaction_id}")
     
-    return jsonify({"status": "ignored"}), 200
-
+    tokens = [f"token-{transaction_id}-{i}" for i in range(num_tokens)]
+    return tokens
 
 if __name__ == '__main__':
-    app.run(port=10000, debug=True)
+    app.run(port=5000, debug=True)
