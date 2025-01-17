@@ -60,7 +60,10 @@ def webhook():
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
         transaction_id = data['data']['id']  # Unique transaction ID
-        payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
+        payment_amount = data['data'].get('amount')  # Safely access the 'amount' field
+
+        if not payment_amount:
+            return jsonify({"status": "error", "message": "Amount not provided in webhook payload"}), 400
 
         try:
             payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
@@ -79,6 +82,7 @@ def webhook():
         return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
     
     return jsonify({"status": "ignored"}), 200
+
 
 if __name__ == '__main__':
     app.run(port=10000, debug=True)
