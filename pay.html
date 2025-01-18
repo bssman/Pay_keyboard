@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment and OTP Generation</title>
+    <title>Payment and Tokens</title>
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <style>
         body {
@@ -37,18 +37,27 @@
         button:hover {
             background-color: #0056b3;
         }
+        .tokens {
+            margin-top: 20px;
+        }
+        .tokens p {
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
-    <h1>Pay and Get OTP</h1>
+    <h1>Pay and Get Tokens</h1>
     <form id="paymentForm">
         <input type="email" id="email" placeholder="Enter your email" required />
         <input type="text" id="amount" placeholder="Enter amount (NGN)" required />
         <button type="submit">Pay Now</button>
     </form>
 
+    <div class="tokens" id="tokensContainer"></div>
+
     <script>
         const paymentForm = document.getElementById('paymentForm');
+        const tokensContainer = document.getElementById('tokensContainer');
 
         paymentForm.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -66,8 +75,8 @@
                 amount: amount,
                 currency: 'NGN',
                 callback: function (response) {
-                    // Notify backend to send tokens
-                    notifyBackend(email, response.reference, amount);
+                    // Notify the backend and retrieve tokens
+                    notifyBackend(email, response.reference);
                 },
                 onClose: function () {
                     alert('Payment window closed.');
@@ -77,8 +86,8 @@
             handler.openIframe();
         }
 
-        function notifyBackend(email, reference, amount) {
-            fetch('https://pay-keyboard.onrender.com/webhook', {
+        function notifyBackend(email, reference) {
+            fetch('https://your-render-url.com/webhook', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -87,24 +96,31 @@
                     event: 'charge.success',
                     data: {
                         id: reference,
-                        amount: amount, // Include the amount
                         customer: {
                             email: email,
                         },
+                        amount: parseInt(document.getElementById('amount').value) * 100, // Convert to kobo
                     },
                 }),
             })
-                .then((response) => {
-                    if (response.ok) {
-                        alert('Tokens have been sent to your email.');
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.status === 'success') {
+                        displayTokens(data.tokens);
                     } else {
-                        alert('Error notifying backend. Please contact support.');
+                        alert(data.message || 'An error occurred.');
                     }
                 })
                 .catch((error) => {
                     console.error('Error:', error);
                     alert('An error occurred. Please try again.');
                 });
+        }
+
+        function displayTokens(tokens) {
+            tokensContainer.innerHTML = `<p>Generated Tokens:</p>${tokens
+                .map((token) => `<p>${token}</p>`)
+                .join('')}`;
         }
     </script>
 </body>
