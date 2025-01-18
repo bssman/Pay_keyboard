@@ -22,34 +22,34 @@ def generate_hashed_tokens(amount, transaction_id):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print("Received webhook data:", data)  # Log incoming data for debugging
+    print(f"Webhook invoked. Raw data: {data}")  # Log raw webhook data
     
-    if data['event'] == 'charge.success':
-        email = data['data']['customer']['email']
-        transaction_id = data['data']['id']  # Unique transaction ID
-        payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
-
+    if data.get('event') == 'charge.success':
         try:
+            email = data['data']['customer']['email']
+            transaction_id = data['data']['id']
+            payment_amount = data['data'].get('amount', 0)
+
+            print(f"Processing: email={email}, transaction_id={transaction_id}, amount={payment_amount}")
+
             payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
-        except ValueError:
-            return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
 
-        if payment_amount <= 0:
-            return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
+            if payment_amount <= 0:
+                raise ValueError("Payment amount must be greater than zero")
 
-        # Generate tokens
-        tokens = generate_hashed_tokens(payment_amount, transaction_id)
+            # Generate tokens
+            tokens = generate_hashed_tokens(payment_amount, transaction_id)
+            print(f"Generated tokens for {email}: {tokens}")
 
-        # Log tokens to the console
-        print(f"Generated tokens for {email}: {tokens}")
+            # Send tokens via email
+            send_email(email, tokens)
 
-        # Placeholder for sending tokens via email
-        # Replace send_email with your implementation
-        # send_email(email, tokens)
-        print(f"Tokens sent to {email}: {tokens}")  # Log to console
-
-        return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
+            return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
+        except Exception as e:
+            print(f"Error processing webhook: {e}")
+            return jsonify({"status": "error", "message": str(e)}), 500
     
+    print("Ignored webhook event.")
     return jsonify({"status": "ignored"}), 200
 
 if __name__ == '__main__':
