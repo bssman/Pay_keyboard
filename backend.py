@@ -6,22 +6,18 @@ import os
 app = Flask(__name__)
 CORS(app, origins=["https://suites11.com"])
 
-# Generate hashed tokens
+# Secret salt for token hashing
+SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
+
+# Function to generate hashed tokens
 def generate_hashed_tokens(amount, transaction_id):
-    num_tokens = amount // 200  # Example: 1 token per 200 NGN
+    num_tokens = amount // 200  # Assuming 200 NGN per token
     tokens = []
-
     for i in range(num_tokens):
-        # Generate a unique token based on transaction_id and index
-        token_seed = f"{transaction_id}-{i}-{os.urandom(16)}"
-        token = hashlib.sha256(token_seed.encode()).hexdigest()[:8]  # Use first 8 characters of the hash
+        unique_data = f"{transaction_id}-{i}-{SECRET_SALT}"
+        token = hashlib.sha256(unique_data.encode()).hexdigest()[:8]  # 8-character token
         tokens.append(token)
-
     return tokens
-
-@app.route('/')
-def home():
-    return "Backend is running."
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
@@ -31,10 +27,7 @@ def webhook():
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
         transaction_id = data['data']['id']  # Unique transaction ID
-        payment_amount = data['data'].get('amount')  # Safely access the 'amount' field
-
-        if not payment_amount:
-            return jsonify({"status": "error", "message": "Amount not provided in webhook payload"}), 400
+        payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
 
         try:
             payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
@@ -44,15 +37,18 @@ def webhook():
         if payment_amount <= 0:
             return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
 
-        # Generate tokens based on payment amount and transaction ID
+        # Generate tokens
         tokens = generate_hashed_tokens(payment_amount, transaction_id)
 
-        # Return the tokens in the response
-        return jsonify({
-            "status": "success",
-            "message": "Tokens generated successfully",
-            "tokens": tokens
-        }), 200
+        # Log tokens to the console
+        print(f"Generated tokens for {email}: {tokens}")
+
+        # Placeholder for sending tokens via email
+        # Replace send_email with your implementation
+        # send_email(email, tokens)
+        print(f"Tokens sent to {email}: {tokens}")  # Log to console
+
+        return jsonify({"status": "success", "message": "Tokens sent to email"}), 200
     
     return jsonify({"status": "ignored"}), 200
 
