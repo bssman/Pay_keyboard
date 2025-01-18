@@ -4,7 +4,7 @@ import hashlib
 import os
 
 app = Flask(__name__)
-CORS(app, origins=["https://suites11.com"])
+CORS(app, origins=["https://suites11.com.ng"])
 
 # Secret salt for token hashing
 SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
