@@ -1,69 +1,60 @@
-import os
-import smtplib
-from flask_cors import CORS
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
 from flask import Flask, request, jsonify
-from threading import Thread
-import logging
-
+from flask_cors import CORS
+import hashlib
+import os
 
 app = Flask(__name__)
-CORS(app, origins=["https://suites11.com.ng"])
-# Set up logging
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+CORS(app, origins=["https://suites11.com"])
 
-# Email credentials
-EMAIL_HOST = os.getenv("EMAIL_HOST", )
-EMAIL_PORT = os.getenv("EMAIL_PORT", 587)
-EMAIL_USER = os.getenv("EMAIL_USER")
-EMAIL_PASS = os.getenv("EMAIL_PASS")
+# Generate hashed tokens
+def generate_hashed_tokens(amount, transaction_id):
+    num_tokens = amount // 200  # Example: 1 token per 200 NGN
+    tokens = []
 
-def send_email(to_email, subject, body):
-    try:
-        # Set up the MIME
-        msg = MIMEMultipart()
-        msg['From'] = EMAIL_USER
-        msg['To'] = to_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
+    for i in range(num_tokens):
+        # Generate a unique token based on transaction_id and index
+        token_seed = f"{transaction_id}-{i}-{os.urandom(16)}"
+        token = hashlib.sha256(token_seed.encode()).hexdigest()[:8]  # Use first 8 characters of the hash
+        tokens.append(token)
 
-        # Connect to the email server
-        server = smtplib.SMTP(EMAIL_HOST, EMAIL_PORT)
-        server.starttls()  # Use TLS encryption
-        server.login(EMAIL_USER, EMAIL_PASS)
-        server.sendmail(EMAIL_USER, to_email, msg.as_string())
-        server.quit()
+    return tokens
 
-        logger.info(f"Email sent successfully to {to_email}")
-    except Exception as e:
-        logger.error(f"Error sending email to {to_email}: {e}")
+@app.route('/')
+def home():
+    return "Backend is running."
 
-def send_email_async(to_email, subject, body):
-    thread = Thread(target=send_email, args=(to_email, subject, body))
-    thread.start()
-
-@app.route("/webhook", methods=["POST"])
+@app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    logger.info(f"Received webhook data: {data}")
-
+    print("Received webhook data:", data)  # Log incoming data for debugging
+    
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
-        amount = data['data']['amount'] // 100  # Convert kobo to Naira
+        transaction_id = data['data']['id']  # Unique transaction ID
+        payment_amount = data['data'].get('amount')  # Safely access the 'amount' field
 
-        if amount <= 0:
-            return jsonify({"status": "error", "message": "Invalid amount provided"}), 400
+        if not payment_amount:
+            return jsonify({"status": "error", "message": "Amount not provided in webhook payload"}), 400
 
-        # Send email asynchronously
-        subject = "Payment Successful"
-        body = f"Dear Customer, \n\nYour payment of {amount} NGN was successful. Thank you for using our service!"
-        send_email_async(email, subject, body)
+        try:
+            payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
+        except ValueError:
+            return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
 
-        return jsonify({"status": "success", "message": "Email is being sent to the customer."}), 200
+        if payment_amount <= 0:
+            return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
 
-    return jsonify({"status": "error", "message": "Invalid event type"}), 400
+        # Generate tokens based on payment amount and transaction ID
+        tokens = generate_hashed_tokens(payment_amount, transaction_id)
 
-if __name__ == "__main__":
-    app.run(debug=True)
+        # Return the tokens in the response
+        return jsonify({
+            "status": "success",
+            "message": "Tokens generated successfully",
+            "tokens": tokens
+        }), 200
+    
+    return jsonify({"status": "ignored"}), 200
+
+if __name__ == '__main__':
+    app.run(port=10000, debug=True)
