@@ -2,20 +2,18 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import hashlib
 import os
-from datetime import datetime, timezone
 
 app = Flask(__name__)
 CORS(app, origins=["https://suites11.com.ng"])
 
-SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")  # Replace with your actual secret salt
+SECRET_SALT = os.getenv("SECRET_SALT", "default_salt") # Replace with your actual secret salt
 
 # Function to generate hashed tokens
 def generate_hashed_tokens(amount):
-    today = datetime.now(timezone.utc).strftime('%Y-%m-%d')  # Current date in UTC
     num_tokens = amount // 200  # Assuming 200 NGN per token
     tokens = []
     for i in range(num_tokens):
-        unique_data = f"{today}-{i}-{SECRET_SALT}"
+        unique_data = f"{i}-{SECRET_SALT}"
         token = hashlib.sha256(unique_data.encode()).hexdigest()[:8]  # 8-character token
         tokens.append(token)
     return tokens
