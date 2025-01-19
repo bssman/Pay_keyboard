@@ -6,11 +6,11 @@ import os
 app = Flask(__name__)
 CORS(app, origins=["https://suites11.com.ng"])
 
-SECRET_SALT = os.getenv("SECRET_SALT", "default_salt") # Replace with your actual secret salt
+SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")  # Replace with your actual secret salt
 
-# Function to generate hashed tokens
-def generate_hashed_tokens(amount):
-    num_tokens = amount // 200  # Assuming 200 NGN per token
+# Function to generate 25 hashed tokens
+def generate_hashed_tokens():
+    num_tokens = 25  # Fixed number of tokens
     tokens = []
     for i in range(num_tokens):
         unique_data = f"{i}-{SECRET_SALT}"
@@ -25,18 +25,9 @@ def webhook():
     
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
-        payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
 
-        try:
-            payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
-        except ValueError:
-            return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
-
-        if payment_amount <= 0:
-            return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
-
-        # Generate tokens
-        tokens = generate_hashed_tokens(payment_amount)
+        # Generate tokens (fixed at 25 tokens)
+        tokens = generate_hashed_tokens()
 
         # Log tokens to the console
         print(f"Generated tokens for {email}: {tokens}")
