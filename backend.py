@@ -8,13 +8,14 @@ CORS(app, origins=["https://suites11.com.ng"])
 
 SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")  # Replace with your actual secret salt
 
-# Function to generate 25 hashed tokens
+# Function to generate 10 MD5 hashed tokens
 def generate_hashed_tokens():
-    num_tokens = 25  # Fixed number of tokens
+    num_tokens = 10  # Fixed number of tokens
     tokens = []
     for i in range(num_tokens):
-        unique_data = f"{i}-{SECRET_SALT}"
-        token = hashlib.sha256(unique_data.encode()).hexdigest()[:8]  # 8-character token
+        unique_data = f"{i}-{SECRET_SALT}"  # Combine index and salt
+        # Use MD5 hash instead of SHA256
+        token = hashlib.md5(unique_data.encode()).hexdigest()[:8]  # 8-character token
         tokens.append(token)
     return tokens
 
@@ -26,7 +27,7 @@ def webhook():
     if data['event'] == 'charge.success':
         email = data['data']['customer']['email']
 
-        # Generate tokens (fixed at 25 tokens)
+        # Generate tokens (fixed at 10 tokens) using MD5
         tokens = generate_hashed_tokens()
 
         # Log tokens to the console
