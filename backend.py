@@ -2,50 +2,56 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import hashlib
 import os
+from datetime import datetime
 
 app = Flask(__name__)
-CORS(app, origins=["https://suites11.com.ng"])
+CORS(app, origins=["*"])
 
-SECRET_SALT = os.getenv("SECRET_SALT", "QBIJSIH5NXWLNUJASMWI4RVU4XQH4E4E")  # Replace with your actual secret salt
-generated_tokens = []  # Store generated tokens temporarily
+SECRET_SALT = os.getenv("SECRET_SALT", "QBIJSIH5NXWLNUJASMWI4RVU4XQH4E4E")  # Secret salt
+TOKENS_DB = []  # Simple in-memory token storage
 
-# Function to generate hashed tokens
-def generate_hashed_tokens():
-    num_tokens = 10  # Number of tokens
-    tokens = []
-    for _ in range(num_tokens):
-        unique_data = f"testword-{SECRET_SALT}"  # Use "testword" for hashing
-        token = hashlib.md5(unique_data.encode()).hexdigest()[:8]  # 8-character token
-        tokens.append(token)
-    return tokens
-
-# Webhook to receive payment success events
+# Webhook to receive payment and generate token
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    global generated_tokens
     data = request.json
-    print("Received webhook data:", data)
+    txn_id = data.get('data', {}).get('id')
+    
+    if not txn_id:
+        return jsonify({"error": "Transaction ID not found"}), 400
 
-    if data['event'] == 'charge.success':
-        email = data['data']['customer']['email']
+    # Generate token using txn_id and SECRET_SALT
+    unique_data = f"{txn_id}-{SECRET_SALT}"
+    token = hashlib.md5(unique_data.encode()).hexdigest()[:8]
+    
+    # Store the token in the database
+    TOKENS_DB.append({
+        "token": token,
+        "status": "valid",
+        "created_at": datetime.utcnow(),
+    })
 
-        # Generate tokens
-        generated_tokens = generate_hashed_tokens()
+    print(f"Generated token: {token}")
+    return jsonify({"status": "success", "token": token}), 200
 
-        # Log tokens
-        print(f"Generated tokens for {email}: {generated_tokens}")
+# API for ESP8266 to fetch valid tokens
+@app.route('/fetch-tokens', methods=['GET'])
+def fetch_tokens():
+    # Filter valid tokens
+    valid_tokens = [t["token"] for t in TOKENS_DB if t["status"] == "valid"]
+    return jsonify({"tokens": valid_tokens}), 200
 
-        # Send tokens back to the frontend
-        return jsonify({"status": "success", "tokens": generated_tokens}), 200
-
-    return jsonify({"status": "ignored"}), 200
-
-# API endpoint for ESP8266 to fetch tokens
-@app.route('/get_tokens', methods=['GET'])
-def get_tokens():
-    if generated_tokens:
-        return jsonify({"status": "success", "tokens": generated_tokens}), 200
-    return jsonify({"status": "error", "message": "No tokens available"}), 404
+# API for ESP8266 to mark token as used
+@app.route('/mark-token-used', methods=['POST'])
+def mark_token_used():
+    data = request.json
+    token = data.get('token')
+    
+    for t in TOKENS_DB:
+        if t["token"] == token and t["status"] == "valid":
+            t["status"] = "used"
+            return jsonify({"status": "success", "message": "Token marked as used"}), 200
+    
+    return jsonify({"status": "error", "message": "Invalid or already used token"}), 400
 
 if __name__ == '__main__':
     app.run(port=10000, debug=True)
