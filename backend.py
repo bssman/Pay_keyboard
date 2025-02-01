@@ -7,8 +7,23 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app, origins=["*"])
 
+<<<<<<< HEAD
 SECRET_SALT = os.getenv("SECRET_SALT", "QBIJSIH5NXWLNUJASMWI4RVU4XQH4E4E")  # Secret salt
 TOKENS_DB = []  # Simple in-memory token storage
+=======
+# Secret salt for token hashing 1st feb 2025 part 2
+SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
+
+# Function to generate hashed tokens
+def generate_hashed_tokens(amount, transaction_id):
+    num_tokens = amount // 200  # Assuming 200 NGN per token
+    tokens = []
+    for i in range(num_tokens):
+        unique_data = f"{transaction_id}-{i}-{SECRET_SALT}"
+        token = hashlib.sha256(unique_data.encode()).hexdigest()[:8]  # 8-character token
+        tokens.append(token)
+    return tokens
+>>>>>>> 4f858c7 (Save changes before Master/main 01feb25)
 
 # Webhook to receive payment and generate token
 @app.route('/webhook', methods=['POST'])
