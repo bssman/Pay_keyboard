@@ -4,7 +4,7 @@ import hashlib
 import os
 
 app = Flask(__name__)
-CORS(app, origins=["https://suites11.com.ng"])  # Allow requests from your frontend
+CORS(app, origins=["https://suites11.com.ng"])  # Allow frontend access
 
 # Secret salt for hashing tokens
 SECRET_SALT = "your_secret_salt_here"  # Change this to a secure, random string
@@ -22,7 +22,6 @@ def generate_hashed_tokens(amount, transaction_id):
 @app.route('/webhook', methods=['POST'])
 def webhook():
     data = request.json
-    print("Received webhook data:", data)  # Log incoming data
 
     if data.get('event') == 'charge.success':
         email = data['data']['customer']['email']
@@ -40,8 +39,10 @@ def webhook():
         # Generate tokens
         tokens = generate_hashed_tokens(payment_amount, transaction_id)
 
-        # Log tokens to the console
-        print(f"Generated tokens for {email}: {tokens}")
+        # Log only essential information
+        print(f"Transaction ID: {transaction_id}")
+        print(f"Email: {email}")
+        print(f"Generated Tokens: {tokens}")
 
         # Send tokens back to the frontend
         return jsonify({"status": "success", "tokens": tokens}), 200
