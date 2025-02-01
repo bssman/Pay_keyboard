@@ -62,7 +62,7 @@
         paymentForm.addEventListener('submit', (e) => {
             e.preventDefault();
 
-            const email = document.getElementById('email').value;
+            const email = document.getElementById('email').value;  //starting feb
             const amount = document.getElementById('amount').value * 100; // Convert to kobo
 
             payWithPaystack(email, amount);

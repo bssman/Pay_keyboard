@@ -7,7 +7,7 @@ from datetime import datetime
 app = Flask(__name__)
 CORS(app, origins=["*"])
 
-# Secret salt for token hashing 1st feb 2025 part 3
+# Secret salt for token hashing starting feb
 SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
 
 # Function to generate hashed tokens attempt at (010225)
