@@ -10,7 +10,7 @@ CORS(app, origins=["*"])
 # Secret salt for token hashing 1st feb 2025 part 3
 SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
 
-# Function to generate hashed tokens
+# Function to generate hashed tokens attempt at (010225)
 def generate_hashed_tokens(amount, transaction_id):
     num_tokens = amount // 200  # Assuming 200 NGN per token
     tokens = []
