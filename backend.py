@@ -4,16 +4,14 @@ import hashlib
 import os
 
 app = Flask(__name__)
-CORS(app, origins=["*"])
+CORS(app, origins=["https://suites11.com.ng"])  # Allow requests from your frontend
 
-# Secret salt for token hashing
-SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
+# Secret salt for hashing tokens
+SECRET_SALT = "your_secret_salt_here"  # Change this to a secure, random string
 
-# Store tokens temporarily
-TOKENS_DB = {}
-
+# Function to generate hashed tokens
 def generate_hashed_tokens(amount, transaction_id):
-    num_tokens = amount // 200  # Assuming 200 NGN per token
+    num_tokens = amount // 200  # 1 token per 200 NGN
     tokens = []
     for i in range(num_tokens):
         unique_data = f"{transaction_id}-{i}-{SECRET_SALT}"
@@ -23,39 +21,32 @@ def generate_hashed_tokens(amount, transaction_id):
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    try:
-        data = request.json
-        print(f"Webhook invoked. Raw data: {data}")  
+    data = request.json
+    print("Received webhook data:", data)  # Log incoming data
 
-        if data.get('event') == 'charge.success':
-            transaction_id = data['data']['id']  
-            email = data['data']['customer']['email']
-            payment_amount = data['data'].get('amount', 0)  
+    if data.get('event') == 'charge.success':
+        email = data['data']['customer']['email']
+        transaction_id = data['data']['id']  # Unique transaction ID
+        payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
 
-            try:
-                payment_amount = int(payment_amount) // 100  
-            except ValueError:
-                return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
+        try:
+            payment_amount = int(payment_amount) // 100  # Convert kobo to NGN
+        except ValueError:
+            return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
 
-            if payment_amount <= 0:
-                return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
+        if payment_amount <= 0:
+            return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
 
-            tokens = generate_hashed_tokens(payment_amount, transaction_id)
-            TOKENS_DB[transaction_id] = tokens  # Store tokens temporarily
-            print(f"Generated tokens for {email}: {tokens}")
+        # Generate tokens
+        tokens = generate_hashed_tokens(payment_amount, transaction_id)
 
-            return jsonify({"status": "success", "tokens": tokens}), 200
+        # Log tokens to the console
+        print(f"Generated tokens for {email}: {tokens}")
 
-        return jsonify({"status": "ignored"}), 200
-    except Exception as e:
-        print(f"Webhook processing error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        # Send tokens back to the frontend
+        return jsonify({"status": "success", "tokens": tokens}), 200
 
-# API for frontend to fetch tokens
-@app.route('/fetch-tokens/<transaction_id>', methods=['GET'])
-def fetch_tokens(transaction_id):
-    tokens = TOKENS_DB.get(transaction_id, [])
-    return jsonify({"tokens": tokens}), 200
+    return jsonify({"status": "ignored"}), 200
 
 if __name__ == '__main__':
     app.run(port=10000, debug=True)

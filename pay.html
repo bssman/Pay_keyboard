@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment and Tokens</title>
+    <title>Payment and OTP Generation</title>
     <script src="https://js.paystack.co/v1/inline.js"></script>
     <style>
         body {
@@ -37,73 +37,101 @@
         button:hover {
             background-color: #0056b3;
         }
-        .tokens {
+        #tokensContainer {
             margin-top: 20px;
-        }
-        .tokens p {
-            font-weight: bold;
+            padding: 10px;
+            border: 1px solid #ddd;
+            display: none;
         }
     </style>
 </head>
 <body>
-    <h1>Pay and Get Tokens</h1>
+    <h1>Pay and Get OTP</h1>
     <form id="paymentForm">
         <input type="email" id="email" placeholder="Enter your email" required />
         <input type="text" id="amount" placeholder="Enter amount (NGN)" required />
         <button type="submit">Pay Now</button>
     </form>
 
-    <div class="tokens" id="tokensContainer"></div>
+    <div id="tokensContainer"></div>
+
     <script>
         const paymentForm = document.getElementById('paymentForm');
-        const tokensContainer = document.getElementById('tokensContainer');
-    
+
         paymentForm.addEventListener('submit', (e) => {
             e.preventDefault();
+
             const email = document.getElementById('email').value;
             const amount = document.getElementById('amount').value * 100; // Convert to kobo
+
             payWithPaystack(email, amount);
         });
-    
+
         function payWithPaystack(email, amount) {
             let handler = PaystackPop.setup({
-                key: 'pk_test_22dcad480918f9bb4bc5b2a4193266b862e2f943', 
+                key: 'pk_test_22dcad480918f9bb4bc5b2a4193266b862e2f943', // Replace with your Paystack public key
                 email: email,
                 amount: amount,
                 currency: 'NGN',
                 callback: function (response) {
-                    fetchTokens(response.reference);
+                    // Notify Render backend to generate tokens
+                    notifyBackend(email, response.reference, amount);
                 },
                 onClose: function () {
                     alert('Payment window closed.');
                 },
             });
+
             handler.openIframe();
         }
-    
-        function fetchTokens(transactionId) {
-            fetch(`https://pay-keyboard.onrender.com/fetch-tokens/${transactionId}`)
-                .then(response => response.json())
-                .then(data => {
-                    if (data.tokens.length > 0) {
+
+        function notifyBackend(email, reference, amount) {
+            console.log("Sending to backend:", { email, reference, amount });
+
+            fetch('https://pay-keyboard.onrender.com/webhook', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    event: 'charge.success',
+                    data: {
+                        id: reference,
+                        customer: {
+                            email: email,
+                        },
+                        amount: amount  // Ensure the backend gets the correct amount
+                    },
+                }),
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    console.log("Response from backend:", data);
+
+                    if (data.status === 'success') {
                         displayTokens(data.tokens);
                     } else {
-                        tokensContainer.innerHTML = '<p>No tokens found. Please wait.</p>';
+                        alert(data.message || 'An error occurred.');
                     }
                 })
-                .catch(error => {
-                    console.error('Error fetching tokens:', error);
-                    tokensContainer.innerHTML = '<p>Error fetching tokens.</p>';
+                .catch((error) => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
                 });
         }
-    
+
         function displayTokens(tokens) {
-            tokensContainer.innerHTML = `<p>Generated Tokens:</p>${tokens
-                .map(token => `<p>${token}</p>`)
-                .join('')}`;
+            const tokensContainer = document.getElementById('tokensContainer');
+            tokensContainer.style.display = "block";
+            
+            if (tokens && tokens.length > 0) {
+                tokensContainer.innerHTML = `<h3>Generated Tokens:</h3>${tokens
+                    .map((token) => `<p>${token}</p>`)
+                    .join('')}`;
+            } else {
+                tokensContainer.innerHTML = `<p>No tokens generated.</p>`;
+            }
         }
     </script>
-    
-    
 </body>
 </html>
