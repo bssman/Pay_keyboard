@@ -2,15 +2,16 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import hashlib
 import os
-from datetime import datetime
 
 app = Flask(__name__)
 CORS(app, origins=["*"])
 
-# Secret salt for token hashing starting feb
+# Secret salt for token hashing
 SECRET_SALT = os.getenv("SECRET_SALT", "default_salt")
 
-# Function to generate hashed tokens 010225 night
+# Store tokens temporarily
+TOKENS_DB = {}
+
 def generate_hashed_tokens(amount, transaction_id):
     num_tokens = amount // 200  # Assuming 200 NGN per token
     tokens = []
@@ -20,37 +21,41 @@ def generate_hashed_tokens(amount, transaction_id):
         tokens.append(token)
     return tokens
 
-# Webhook to receive payment and generate token
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
         data = request.json
-        print(f"Webhook invoked. Raw data: {data}")  # Log incoming data
+        print(f"Webhook invoked. Raw data: {data}")  
 
         if data.get('event') == 'charge.success':
+            transaction_id = data['data']['id']  
             email = data['data']['customer']['email']
-            transaction_id = data['data']['id']  # Unique transaction ID
-            payment_amount = data['data'].get('amount', 0)  # Amount paid (in kobo)
+            payment_amount = data['data'].get('amount', 0)  
 
             try:
-                payment_amount = int(payment_amount) // 100  # Convert kobo to Naira
+                payment_amount = int(payment_amount) // 100  
             except ValueError:
                 return jsonify({"status": "error", "message": "Invalid payment amount"}), 400
 
             if payment_amount <= 0:
                 return jsonify({"status": "error", "message": "Payment amount must be greater than zero"}), 400
 
-            # Generate tokens
             tokens = generate_hashed_tokens(payment_amount, transaction_id)
+            TOKENS_DB[transaction_id] = tokens  # Store tokens temporarily
             print(f"Generated tokens for {email}: {tokens}")
 
-            # Send tokens back to the frontend
             return jsonify({"status": "success", "tokens": tokens}), 200
 
         return jsonify({"status": "ignored"}), 200
     except Exception as e:
         print(f"Webhook processing error: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+# API for frontend to fetch tokens
+@app.route('/fetch-tokens/<transaction_id>', methods=['GET'])
+def fetch_tokens(transaction_id):
+    tokens = TOKENS_DB.get(transaction_id, [])
+    return jsonify({"tokens": tokens}), 200
 
 if __name__ == '__main__':
     app.run(port=10000, debug=True)

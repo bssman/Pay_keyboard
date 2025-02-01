@@ -54,74 +54,56 @@
     </form>
 
     <div class="tokens" id="tokensContainer"></div>
-
     <script>
         const paymentForm = document.getElementById('paymentForm');
         const tokensContainer = document.getElementById('tokensContainer');
-
+    
         paymentForm.addEventListener('submit', (e) => {
             e.preventDefault();
-
-            const email = document.getElementById('email').value;  //010225 night
+            const email = document.getElementById('email').value;
             const amount = document.getElementById('amount').value * 100; // Convert to kobo
-
             payWithPaystack(email, amount);
         });
-
+    
         function payWithPaystack(email, amount) {
             let handler = PaystackPop.setup({
-                key: 'pk_test_22dcad480918f9bb4bc5b2a4193266b862e2f943', // Replace with your Paystack public key
+                key: 'pk_test_22dcad480918f9bb4bc5b2a4193266b862e2f943', 
                 email: email,
                 amount: amount,
                 currency: 'NGN',
                 callback: function (response) {
-                    // Notify the backend and retrieve tokens
-                    notifyBackend(email, response.reference);
+                    fetchTokens(response.reference);
                 },
                 onClose: function () {
                     alert('Payment window closed.');
                 },
             });
-
             handler.openIframe();
         }
-
-        function notifyBackend(email, reference) {
-            fetch('https://pay-keyboard.onrender.com/webhook', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    event: 'charge.success',
-                    data: {
-                        id: reference,
-                        customer: {
-                            email: email,
-                        },
-                        amount: parseInt(document.getElementById('amount').value) * 100, // Convert to kobo
-                    },
-                }),
-            })
-                .then((response) => response.json())
-                .then((data) => {
-                    if (data.status === 'success') {
+    
+        function fetchTokens(transactionId) {
+            fetch(`https://pay-keyboard.onrender.com/fetch-tokens/${transactionId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.tokens.length > 0) {
                         displayTokens(data.tokens);
                     } else {
-                        alert(data.message || 'An error occurred.');
+                        tokensContainer.innerHTML = '<p>No tokens found. Please wait.</p>';
                     }
                 })
-                .catch((error) => {
-                    console.error('Error:', error);
-                    alert('An error occurred. Please try again.');
+                .catch(error => {
+                    console.error('Error fetching tokens:', error);
+                    tokensContainer.innerHTML = '<p>Error fetching tokens.</p>';
                 });
         }
-
+    
         function displayTokens(tokens) {
             tokensContainer.innerHTML = `<p>Generated Tokens:</p>${tokens
-                .map((token) => `<p>${token}</p>`)
+                .map(token => `<p>${token}</p>`)
                 .join('')}`;
         }
     </script>
+    
+    
 </body>
 </html>
