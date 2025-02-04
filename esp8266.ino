@@ -1,8 +1,8 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 
-const char* ssid = "your_wifi_ssid";
-const char* password = "your_wifi_password";
+const char* ssid = "TECNO CAMON 12 Air";
+const char* password = "afms83/406";
 const char* serverUrl = "https://pay-keyboard.onrender.com/tokens";
 
 void setup() {
