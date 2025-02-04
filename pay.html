@@ -53,6 +53,8 @@
         <button type="submit">Pay Now</button>
     </form>
 
+    <button onclick="fetchTokens()">Get My Tokens</button>
+    
     <div id="tokensContainer"></div>
 
     <script>
@@ -118,6 +120,29 @@
                     console.error('Error:', error);
                     alert('An error occurred. Please try again.');
                 });
+        }
+
+        function fetchTokens() {
+            fetch('https://pay-keyboard.onrender.com/tokens', {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log("Fetched Tokens:", data);
+
+                if (data.tokens && data.tokens.length > 0) {
+                    displayTokens(data.tokens);
+                } else {
+                    alert("No tokens available.");
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching tokens:', error);
+                alert('Failed to fetch tokens.');
+            });
         }
 
         function displayTokens(tokens) {
